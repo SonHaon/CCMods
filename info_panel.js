@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Info Panel
 // @namespace    https://github.com/SonHaon/CCMods/
-// @version      1.6
+// @version      1.7
 // @description  Affiche un panneau d'informations personnalisées au-dessus du store
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
@@ -12,6 +12,49 @@
 
 (function() {
     'use strict';
+
+    // =========================================================
+    //  TRADUCTIONS
+    // =========================================================
+    const I18N = {
+        EN: {
+            panel_title:    'Info',
+            section_title:  'Info Panel',
+            panel_shown:    'Panel: shown',
+            panel_hidden:   'Panel: hidden',
+            add_formula:    '+ Add formula',
+            remove:         'Remove',
+            no_formulas:    'No formulas added.',
+            error:          'error',
+            error_suffix:   ' [ERROR]',
+            prompt_label:   'Formula name:',
+            prompt_expr:    'Expression (available variables: G, cps, baseCps)\n\nExamples:\n  baseCps * 1800\n  G.cookies * 0.15\n  Math.pow(cps, 2)',
+            prompt_default: 'baseCps * 1800',
+            invalid_expr:   'Invalid expression or syntax error. The formula was not added.',
+        },
+        FR: {
+            panel_title:    'Infos',
+            section_title:  'Info Panel',
+            panel_shown:    'Panneau : affiché',
+            panel_hidden:   'Panneau : caché',
+            add_formula:    '+ Ajouter une formule',
+            remove:         'Supprimer',
+            no_formulas:    'Aucune formule ajoutée.',
+            error:          'erreur',
+            error_suffix:   ' [ERREUR]',
+            prompt_label:   'Nom de la formule :',
+            prompt_expr:    'Expression (variables disponibles : G, cps, baseCps)\n\nExemples :\n  baseCps * 1800\n  G.cookies * 0.15\n  Math.pow(cps, 2)',
+            prompt_default: 'baseCps * 1800',
+            invalid_expr:   "Expression invalide ou erreur de syntaxe. La formule n'a pas été ajoutée.",
+        },
+    };
+
+    const getLang = () => {
+        try { return (Game.lang || 'EN').toUpperCase(); } catch(_) { return 'EN'; }
+    };
+
+    const t = (key) => (I18N[getLang()] || I18N.EN)[key] || I18N.EN[key] || key;
+    // =========================================================
 
     // =========================================================
     //  FORMULES DE BASE -- toujours affichees, non modifiables depuis les options
@@ -32,7 +75,6 @@
 
     let SHOW_PANEL = localStorage.getItem(LS_SHOW_KEY) !== 'false';
 
-    // Formules utilisateur : [{label, expr}] stockees en JSON dans localStorage
     function loadUserFormulas() {
         try { return JSON.parse(localStorage.getItem(LS_FORMULAS_KEY) || '[]'); }
         catch(_) { return []; }
@@ -42,28 +84,26 @@
         localStorage.setItem(LS_FORMULAS_KEY, JSON.stringify(list));
     }
 
-    // Compile une expression texte en fonction, retourne null si invalide
     function compileExpr(expr) {
         try {
             const fn = new Function('G', 'cps', 'baseCps', '"use strict"; return (' + expr + ');');
-            fn({ cookiesPs: 1, cookies: 1 }, 1, 1); // test rapide
+            fn({ cookiesPs: 1, cookies: 1 }, 1, 1);
             return fn;
         } catch(e) {
             return null;
         }
     }
 
-    // Fusion base + utilisateur en un tableau pret a l'emploi
     function buildAllFormulas() {
         const user = loadUserFormulas().map(({ label, expr }) => {
             const fn = compileExpr(expr);
-            return fn ? { label, fn } : { label: label + ' [ERREUR]', fn: () => NaN };
+            return fn ? { label, fn } : { label: label + t('error_suffix'), fn: () => NaN };
         });
         return [...BASE_FORMULAS, ...user];
     }
 
     function fmt(n) {
-        if (isNaN(n)) return 'erreur';
+        if (isNaN(n)) return t('error');
         try { return Beautify(n, 1); } catch(_) { return Number(n).toLocaleString(); }
     }
 
@@ -94,7 +134,7 @@
         if (!SHOW_PANEL) panel.style.display = 'none';
 
         const title = document.createElement('div');
-        title.textContent = 'Infos';
+        title.textContent = t('panel_title');
         title.style.cssText = 'font-size:13px;font-weight:bold;color:#fff;margin-bottom:4px;letter-spacing:1px;';
         panel.appendChild(title);
 
@@ -111,8 +151,8 @@
         const grid = document.getElementById(PANEL_ID + '_grid');
         if (!grid || typeof Game === 'undefined') return;
 
-        const cps     = Game.cookiesPs;
-        const baseCps = Game.unbuffedCps !== undefined ? Game.unbuffedCps : Game.cookiesPs;
+        const cps      = Game.cookiesPs;
+        const baseCps  = Game.unbuffedCps !== undefined ? Game.unbuffedCps : Game.cookiesPs;
         const formulas = buildAllFormulas();
 
         const rows = grid.querySelectorAll('.cc-info-row');
@@ -141,7 +181,7 @@
             try {
                 el.textContent = fmt(formulas[i].fn(Game, cps, baseCps));
             } catch(e) {
-                el.textContent = 'erreur';
+                el.textContent = t('error');
                 el.title = e.message;
             }
         });
@@ -150,8 +190,6 @@
     function renderOptionsSection() {
         const menu = document.querySelector('#menu .block');
         if (!menu || document.getElementById('ccinfopanel-section')) return;
-
-        const userFormulas = loadUserFormulas();
 
         const div = document.createElement('div');
         div.id = 'ccinfopanel-section';
@@ -165,7 +203,7 @@
             if (uf.length === 0) {
                 const empty = document.createElement('div');
                 empty.style.cssText = 'opacity:0.5;font-size:11px;padding:2px 0;';
-                empty.textContent = 'Aucune formule ajoutee.';
+                empty.textContent = t('no_formulas');
                 listEl.appendChild(empty);
             }
 
@@ -182,13 +220,12 @@
                 const del = document.createElement('a');
                 del.className = 'option';
                 del.style.cssText = 'color:#f66;margin-left:8px;cursor:pointer;flex-shrink:0;';
-                del.textContent = 'Supprimer';
+                del.textContent = t('remove');
                 del.onclick = () => {
                     const list = loadUserFormulas();
                     list.splice(i, 1);
                     saveUserFormulas(list);
                     rebuild();
-                    // force reconstruction des lignes du panneau
                     const grid = document.getElementById(PANEL_ID + '_grid');
                     if (grid) grid.innerHTML = '';
                 };
@@ -200,34 +237,31 @@
         };
 
         div.innerHTML = `
-            <div class="title">Info Panel</div>
+            <div class="title">${t('section_title')}</div>
             <div class="listing">
-                <a class="option" id="ccInfoToggleBtn">Panneau : ${SHOW_PANEL ? 'affiche' : 'cache'}</a>
+                <a class="option" id="ccInfoToggleBtn">${SHOW_PANEL ? t('panel_shown') : t('panel_hidden')}</a>
             </div>
             <div id="ccInfoUserList"></div>
             <div class="listing">
-                <a class="option" id="ccInfoAddBtn" style="color:#6f6;">+ Ajouter une formule</a>
+                <a class="option" id="ccInfoAddBtn" style="color:#6f6;">${t('add_formula')}</a>
             </div>
         `;
 
         div.querySelector('#ccInfoToggleBtn').onclick = function() {
             setPanelVisibility(!SHOW_PANEL);
-            this.textContent = 'Panneau : ' + (SHOW_PANEL ? 'affiche' : 'cache');
+            this.textContent = SHOW_PANEL ? t('panel_shown') : t('panel_hidden');
         };
 
         div.querySelector('#ccInfoAddBtn').onclick = () => {
-            const label = prompt('Nom de la formule :');
+            const label = prompt(t('prompt_label'));
             if (!label || !label.trim()) return;
 
-            const expr = prompt(
-                'Expression (variables disponibles : G, cps, baseCps)\n\nExemples :\n  baseCps * 1800\n  G.cookies * 0.15\n  Math.pow(cps, 2)',
-                'baseCps * 1800'
-            );
+            const expr = prompt(t('prompt_expr'), t('prompt_default'));
             if (!expr || !expr.trim()) return;
 
             const fn = compileExpr(expr.trim());
             if (!fn) {
-                alert('Expression invalide ou erreur de syntaxe. La formule n\'a pas ete ajoutee.');
+                alert(t('invalid_expr'));
                 return;
             }
 

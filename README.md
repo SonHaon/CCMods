@@ -21,7 +21,7 @@ Automatically saves your Cookie Clicker game to a [Firebase Realtime Database](h
 ### Features
 
 - Auto-save to Firebase on a configurable interval (default: every 60s)
-- Password-protected writes enforced at the **Firebase rules level** — no client-side encryption needed
+- Password-protected writes enforced at the **Firebase rules level**
 - Password verified locally via SHA-256 hash (no external library required)
 - Force sync with `Ctrl+S`
 - Live leaderboard showing cookies, CPS and prestige of all players
