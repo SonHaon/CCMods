@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Cloud Save
 // @namespace    https://github.com/SonHaon/CCMods/
-// @version      1.3
+// @version      1.4
 // @description  Sauvegarde auto compatible avec les URLs Firebase Europe-West1
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
@@ -29,15 +29,6 @@
         const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass));
         return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
     };
-
-    // Charge CryptoJS uniquement pour migrer d'anciennes saves chiffrées
-    const loadCrypto = () => new Promise(resolve => {
-        if (window.CryptoJS) return resolve();
-        const s = document.createElement('script');
-        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js';
-        s.onload = resolve;
-        document.head.appendChild(s);
-    });
 
     const CCCloud = {
 
@@ -212,7 +203,6 @@
 
                 this._ref     = ref(this._db, 'users/' + DB_NAME);
                 this._passRef = ref(this._db, 'passwords/' + DB_NAME);
-                this._legRef  = ref(this._db, DB_NAME);
                 this._lbRef   = ref(this._db, 'leaderboard/' + DB_NAME);
                 this._lbRoot  = ref(this._db, 'leaderboard');
 
@@ -281,19 +271,8 @@
                 };
 
                 this.load = async () => {
-                    let snapshot = await get(this._ref);
-                    let data = snapshot.val();
-                    let fromLegacy = false;
-
-                    if (!data || !data.game) {
-                        const legSnap = await get(this._legRef);
-                        const legData = legSnap.val();
-                        if (legData && legData.game) {
-                            data = legData;
-                            fromLegacy = true;
-                            console.log("CCCloud: données legacy détectées, migration en cours...");
-                        }
-                    }
+                    const snapshot = await get(this._ref);
+                    const data = snapshot.val();
 
                     // Nouveau profil
                     if (!data || !data.game) {
@@ -305,68 +284,11 @@
                         return;
                     }
 
-                    // Format v1.4+ : save en clair, vérification par passhash
-                    if (data.passhash) {
-                        Game.LoadSave(data.game);
-                        this._authenticated = await authenticateWithHash(data.passhash);
-                        if (this._authenticated) {
-                            Game.Notify('Cloud Sync', 'Accès accordé au profil ' + DB_NAME, [16, 5], 5);
-                        }
-                        return;
-                    }
-
-                    // Format legacy non-chiffré (très ancienne version)
-                    if (data.game.includes('|') || data.game.includes('%21END%21')) {
-                        Game.LoadSave(data.game);
-                        while (!DB_PASS) {
-                            DB_PASS = prompt(`Profil « ${DB_NAME} » — Créez un mot de passe :`) || "";
-                        }
-                        await this._bootstrapPass(DB_PASS);
-                        this._authenticated = true;
-                        await this.save();
-                        Game.Notify('Cloud Sync', 'Sauvegarde migrée vers le format v1.4.', [16, 5]);
-                        return;
-                    }
-
-                    // Format legacy chiffré (v1.0-1.3) — CryptoJS chargé uniquement ici
-                    await loadCrypto();
-                    const tryDecrypt = (enc, pass) => {
-                        try {
-                            const dec = CryptoJS.AES.decrypt(enc, pass).toString(CryptoJS.enc.Utf8);
-                            return (dec && dec.length > 100) ? dec : null;
-                        } catch(_) { return null; }
-                    };
-
-                    if (DB_PASS) {
-                        const dec = tryDecrypt(data.game, DB_PASS);
-                        if (dec) {
-                            Game.LoadSave(dec);
-                            if (fromLegacy) await this._bootstrapPass(DB_PASS);
-                            this._authenticated = true;
-                            await this.save(); // réécrit en clair dans le nouveau format
-                            Game.Notify('Cloud Sync', 'Sauvegarde migrée vers le format v1.4.', [16, 5]);
-                            return;
-                        }
-                        DB_PASS = '';
-                        localStorage.removeItem('CCCloud_DB_PASS');
-                    }
-
-                    let attempts = 0;
-                    while (true) {
-                        DB_PASS = (askPassword(attempts) || "").trim();
-                        if (!DB_PASS) { this._authenticated = false; break; }
-                        const dec = tryDecrypt(data.game, DB_PASS);
-                        if (dec) {
-                            Game.LoadSave(dec);
-                            localStorage.setItem('CCCloud_DB_PASS', DB_PASS);
-                            if (fromLegacy) await this._bootstrapPass(DB_PASS);
-                            this._authenticated = true;
-                            await this.save();
-                            Game.Notify('Cloud Sync', 'Sauvegarde migrée vers le format v1.4.', [16, 5]);
-                            break;
-                        }
-                        attempts++;
-                        DB_PASS = '';
+                    // Profil existant : charge la save et vérifie le mot de passe via passhash
+                    Game.LoadSave(data.game);
+                    this._authenticated = await authenticateWithHash(data.passhash);
+                    if (this._authenticated) {
+                        Game.Notify('Cloud Sync', 'Accès accordé au profil ' + DB_NAME, [16, 5], 5);
                     }
                 };
 
