@@ -50,7 +50,8 @@
     };
 
     const getLang = () => {
-        try { return (Game.lang || 'EN').toUpperCase(); } catch(_) { return 'EN'; }
+        const stored = localStorage.getItem('CookieClickerLang') || 'EN';
+        return stored.toUpperCase();
     };
 
     const t = (key) => (I18N[getLang()] || I18N.EN)[key] || I18N.EN[key] || key;
