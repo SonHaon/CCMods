@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Cloud Save
 // @namespace    https://github.com/SonHaon/CCMods/
-// @version      1.2
+// @version      1.3
 // @description  Sauvegarde auto compatible avec les URLs Firebase Europe-West1
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
@@ -23,6 +23,21 @@
     let SAVE_INTERVAL = _rawSave !== null ? parseInt(_rawSave) : 60;
     let LB_INTERVAL   = parseInt(localStorage.getItem('CCCloud_LB_INTERVAL') || '0');
     let SHOW_LB       = localStorage.getItem('CCCloud_SHOW_LB') !== 'false';
+
+    // Hash SHA-256 via l'API Web Crypto native — pas besoin de CryptoJS
+    const hashPass = async (pass) => {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    };
+
+    // Charge CryptoJS uniquement pour migrer d'anciennes saves chiffrées
+    const loadCrypto = () => new Promise(resolve => {
+        if (window.CryptoJS) return resolve();
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js';
+        s.onload = resolve;
+        document.head.appendChild(s);
+    });
 
     const CCCloud = {
 
@@ -101,21 +116,29 @@
                         div.querySelector('#changePassBtn').onclick = async () => {
                             const current = prompt("Mot de passe actuel :");
                             if (!current) return;
+
+                            // Vérification via passhash (pas besoin de déchiffrer)
                             const snapshot = await this._get(this._ref);
                             const data = snapshot.val();
-                            if (data?.game) {
-                                try {
-                                    const test = CryptoJS.AES.decrypt(data.game, current).toString(CryptoJS.enc.Utf8);
-                                    if (!test || test.length < 100) { alert("Mot de passe actuel incorrect."); return; }
-                                } catch (_) { alert("Mot de passe actuel incorrect."); return; }
+                            if (data?.passhash) {
+                                const h = await hashPass(current);
+                                if (h !== data.passhash) { alert("Mot de passe actuel incorrect."); return; }
                             }
+
                             let newPass = "";
                             while (!newPass) { newPass = prompt("Nouveau mot de passe :") || ""; }
                             if (newPass !== prompt("Confirmez le nouveau mot de passe :")) { alert("Les mots de passe ne correspondent pas."); return; }
+
+                            try {
+                                await this._update(this._passRef, { val: newPass, prev: current });
+                            } catch(e) {
+                                alert("Erreur Firebase : mot de passe actuel refusé.\n\n" + e.message);
+                                return;
+                            }
                             DB_PASS = newPass;
-                            await this._storePass(DB_PASS);
+                            localStorage.setItem('CCCloud_DB_PASS', newPass);
                             await this.save();
-                            alert("Mot de passe changé et sauvegarde re-chiffrée !");
+                            alert("Mot de passe changé !");
                         };
                         div.querySelector('#changeProfileBtn').onclick = () => {
                             const raw = prompt("Nouveau nom de profil :", DB_NAME);
@@ -171,22 +194,14 @@
                 return;
             }
 
-            const loadCrypto = () => new Promise(resolve => {
-                if (window.CryptoJS) return resolve();
-                const s = document.createElement('script');
-                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js';
-                s.onload = resolve;
-                document.head.appendChild(s);
-            });
-
             const { initializeApp } = await import('https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js');
             const { getDatabase, ref, get, update } = await import('https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js');
-            await loadCrypto();
 
             try {
                 const app = initializeApp({ databaseURL: DB_URL });
-                this._db = getDatabase(app);
-                this._get = get;
+                this._db     = getDatabase(app);
+                this._get    = get;
+                this._update = update;
 
                 if (!DB_NAME) {
                     const raw = prompt("Bienvenue ! Choisissez un nom de profil :") || "default";
@@ -194,18 +209,41 @@
                     if (DB_NAME !== raw) alert(`Nom ajusté (caractères invalides retirés) : ${DB_NAME}`);
                     localStorage.setItem('CCCloud_DB_NAME', DB_NAME);
                 }
-                this._ref    = ref(this._db, DB_NAME);
-                this._lbRef  = ref(this._db, 'leaderboard/' + DB_NAME);
-                this._lbRoot = ref(this._db, 'leaderboard');
 
-                this._storePass = async (pass) => {
+                this._ref     = ref(this._db, 'users/' + DB_NAME);
+                this._passRef = ref(this._db, 'passwords/' + DB_NAME);
+                this._legRef  = ref(this._db, DB_NAME);
+                this._lbRef   = ref(this._db, 'leaderboard/' + DB_NAME);
+                this._lbRoot  = ref(this._db, 'leaderboard');
+
+                this._bootstrapPass = async (pass) => {
                     localStorage.setItem('CCCloud_DB_PASS', pass);
-                    await update(this._ref, { password: pass });
+                    await update(this._passRef, { val: pass });
                 };
 
                 const askPassword = (attempts = 0) => {
                     const errorLine = attempts > 0 ? `Mot de passe incorrect (tentative ${attempts}).\n\n` : '';
                     return prompt(`${errorLine}Profil « ${DB_NAME} » — Mot de passe :`);
+                };
+
+                // Authentifie l'utilisateur via le hash SHA-256 stocké dans ses données
+                const authenticateWithHash = async (storedHash) => {
+                    if (DB_PASS) {
+                        if (await hashPass(DB_PASS) === storedHash) return true;
+                        DB_PASS = '';
+                        localStorage.removeItem('CCCloud_DB_PASS');
+                    }
+                    let attempts = 0;
+                    while (true) {
+                        DB_PASS = (askPassword(attempts) || "").trim();
+                        if (!DB_PASS) return false;
+                        if (await hashPass(DB_PASS) === storedHash) {
+                            localStorage.setItem('CCCloud_DB_PASS', DB_PASS);
+                            return true;
+                        }
+                        attempts++;
+                        DB_PASS = '';
+                    }
                 };
 
                 this.save = async () => {
@@ -218,7 +256,6 @@
                         console.warn("CCCloud: Save invalide ignorée.", rawSave);
                         return;
                     }
-                    const encrypted = CryptoJS.AES.encrypt(rawSave, DB_PASS).toString();
                     let cpsMult = 1;
                     for (const b of Object.values(Game.buffs || {})) {
                         if (b.multCpS) cpsMult *= b.multCpS;
@@ -229,59 +266,87 @@
                         cps:      baseCps,
                         prestige: Game.prestige || 0,
                         time:     Date.now(),
+                        _token:   DB_PASS,
                     };
                     try {
-                        await update(this._ref, { game: encrypted, time: Date.now() });
+                        await update(this._ref, {
+                            game:     rawSave,
+                            time:     Date.now(),
+                            passhash: await hashPass(DB_PASS),
+                            _token:   DB_PASS,
+                        });
                         await update(this._lbRef, lbStats);
                         Game.Notify('Cloud Sync', 'Sauvegarde envoyée sur le cloud', '', 1);
                     } catch (e) { console.error(e); }
                 };
 
                 this.load = async () => {
-                    const snapshot = await get(this._ref);
-                    const data = snapshot.val();
+                    let snapshot = await get(this._ref);
+                    let data = snapshot.val();
+                    let fromLegacy = false;
 
-                    if (!data) {
+                    if (!data || !data.game) {
+                        const legSnap = await get(this._legRef);
+                        const legData = legSnap.val();
+                        if (legData && legData.game) {
+                            data = legData;
+                            fromLegacy = true;
+                            console.log("CCCloud: données legacy détectées, migration en cours...");
+                        }
+                    }
+
+                    // Nouveau profil
+                    if (!data || !data.game) {
                         while (!DB_PASS) {
                             DB_PASS = prompt(`Profil « ${DB_NAME} » — Choisissez un mot de passe :`) || "";
                         }
-                        await this._storePass(DB_PASS);
+                        await this._bootstrapPass(DB_PASS);
                         this._authenticated = true;
                         return;
                     }
 
-                    if (data.game && (data.game.includes("|") || data.game.includes("%21END%21"))) {
+                    // Format v1.4+ : save en clair, vérification par passhash
+                    if (data.passhash) {
+                        Game.LoadSave(data.game);
+                        this._authenticated = await authenticateWithHash(data.passhash);
+                        if (this._authenticated) {
+                            Game.Notify('Cloud Sync', 'Accès accordé au profil ' + DB_NAME, [16, 5], 5);
+                        }
+                        return;
+                    }
+
+                    // Format legacy non-chiffré (très ancienne version)
+                    if (data.game.includes('|') || data.game.includes('%21END%21')) {
                         Game.LoadSave(data.game);
                         while (!DB_PASS) {
-                            DB_PASS = prompt(`Profil « ${DB_NAME} » — Créez un mot de passe pour chiffrer la sauvegarde :`) || "";
+                            DB_PASS = prompt(`Profil « ${DB_NAME} » — Créez un mot de passe :`) || "";
                         }
-                        await this._storePass(DB_PASS);
+                        await this._bootstrapPass(DB_PASS);
                         this._authenticated = true;
-                        Game.Notify('Cloud Sync', 'Ancienne sauvegarde récupérée. Elle sera chiffrée au prochain save.', [16, 5]);
+                        await this.save();
+                        Game.Notify('Cloud Sync', 'Sauvegarde migrée vers le format v1.4.', [16, 5]);
                         return;
                     }
 
-                    if (!data.game) {
-                        if (!DB_PASS) {
-                            DB_PASS = askPassword() || "";
-                            if (!DB_PASS) { this._authenticated = false; return; }
-                            await this._storePass(DB_PASS);
-                        }
-                        this._authenticated = true;
-                        return;
-                    }
+                    // Format legacy chiffré (v1.0-1.3) — CryptoJS chargé uniquement ici
+                    await loadCrypto();
+                    const tryDecrypt = (enc, pass) => {
+                        try {
+                            const dec = CryptoJS.AES.decrypt(enc, pass).toString(CryptoJS.enc.Utf8);
+                            return (dec && dec.length > 100) ? dec : null;
+                        } catch(_) { return null; }
+                    };
 
                     if (DB_PASS) {
-                        try {
-                            const bytes = CryptoJS.AES.decrypt(data.game, DB_PASS);
-                            const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-                            if (decrypted && decrypted.length > 100) {
-                                Game.LoadSave(decrypted);
-                                this._authenticated = true;
-                                Game.Notify('Cloud Sync', 'Accès accordé au profil ' + DB_NAME, [16, 5], 5);
-                                return;
-                            }
-                        } catch (_) {}
+                        const dec = tryDecrypt(data.game, DB_PASS);
+                        if (dec) {
+                            Game.LoadSave(dec);
+                            if (fromLegacy) await this._bootstrapPass(DB_PASS);
+                            this._authenticated = true;
+                            await this.save(); // réécrit en clair dans le nouveau format
+                            Game.Notify('Cloud Sync', 'Sauvegarde migrée vers le format v1.4.', [16, 5]);
+                            return;
+                        }
                         DB_PASS = '';
                         localStorage.removeItem('CCCloud_DB_PASS');
                     }
@@ -290,17 +355,16 @@
                     while (true) {
                         DB_PASS = (askPassword(attempts) || "").trim();
                         if (!DB_PASS) { this._authenticated = false; break; }
-                        try {
-                            const bytes = CryptoJS.AES.decrypt(data.game, DB_PASS);
-                            const decrypted = bytes.toString(CryptoJS.enc.Utf8);
-                            if (decrypted && decrypted.length > 100) {
-                                Game.LoadSave(decrypted);
-                                await this._storePass(DB_PASS);
-                                this._authenticated = true;
-                                Game.Notify('Cloud Sync', 'Accès accordé au profil ' + DB_NAME, [16, 5], 5);
-                                break;
-                            }
-                        } catch (_) {}
+                        const dec = tryDecrypt(data.game, DB_PASS);
+                        if (dec) {
+                            Game.LoadSave(dec);
+                            localStorage.setItem('CCCloud_DB_PASS', DB_PASS);
+                            if (fromLegacy) await this._bootstrapPass(DB_PASS);
+                            this._authenticated = true;
+                            await this.save();
+                            Game.Notify('Cloud Sync', 'Sauvegarde migrée vers le format v1.4.', [16, 5]);
+                            break;
+                        }
                         attempts++;
                         DB_PASS = '';
                     }
@@ -318,8 +382,7 @@
                         const snap = await this._get(this._lbRoot);
                         const all = snap.val() || {};
                         const now = Date.now();
-                        const entries = Object.entries(all)
-                            .sort(([a], [b]) => a.localeCompare(b));
+                        const entries = Object.entries(all).sort(([a], [b]) => a.localeCompare(b));
                         if (!entries.length) {
                             rows.innerHTML = '<div style="padding:2px 0;opacity:0.6;">Aucun joueur trouvé.</div>';
                         } else {
