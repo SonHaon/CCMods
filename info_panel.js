@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Info Panel
 // @namespace    http://tampermonkey.net/
-// @version      1.1
+// @version      1.2
 // @description  Affiche un panneau d'informations personnalisées au-dessus du store
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
