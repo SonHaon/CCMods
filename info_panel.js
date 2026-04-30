@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         Cookie Clicker Info Panel
-// @namespace    http://tampermonkey.net/
-// @version      1.5
+// @namespace    https://github.com/SonHaon/CCMods/
+// @version      1.6
 // @description  Affiche un panneau d'informations personnalisées au-dessus du store
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/SonHaon/CCMods/refs/heads/main/info_panel.js
+// @downloadURL  https://raw.githubusercontent.com/SonHaon/CCMods/refs/heads/main/info_panel.js
 // ==/UserScript==
 
 (function() {

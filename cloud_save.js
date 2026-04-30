@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         Cookie Clicker Cloud Save
-// @namespace    http://tampermonkey.net/
-// @version      1.1
+// @namespace    https://github.com/SonHaon/CCMods/
+// @version      1.2
 // @description  Sauvegarde auto compatible avec les URLs Firebase Europe-West1
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
 // @grant        none
+// @updateURL    https://raw.githubusercontent.com/SonHaon/CCMods/refs/heads/main/cloud_save.js
+// @downloadURL  https://raw.githubusercontent.com/SonHaon/CCMods/refs/heads/main/cloud_save.js
 // ==/UserScript==
 
 (function() {
