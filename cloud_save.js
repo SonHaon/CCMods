@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Cloud Save
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Sauvegarde auto compatible avec les URLs Firebase Europe-West1
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
@@ -367,6 +367,7 @@
                 if (storeTitle) storeTitle.parentNode.insertBefore(lb, storeTitle);
 
                 this._startLbInterval(LB_INTERVAL);
+                this._refreshLb();
 
                 window.addEventListener('keydown', (e) => {
                     if ((e.ctrlKey || e.metaKey) && e.keyCode === 83) {
