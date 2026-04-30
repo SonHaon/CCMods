@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Info Panel
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Affiche un panneau d'informations personnalisées au-dessus du store
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
@@ -36,11 +36,21 @@
     ];
     // =========================================================
 
-    const REFRESH_MS = 1000;
-    const PANEL_ID   = 'ccInfoPanel';
+    const REFRESH_MS  = 1000;
+    const PANEL_ID    = 'ccInfoPanel';
+    const LS_SHOW_KEY = 'CCInfoPanel_SHOW';
+
+    let SHOW_PANEL = localStorage.getItem(LS_SHOW_KEY) !== 'false';
 
     function fmt(n) {
         try { return Beautify(n, 1); } catch(_) { return Number(n).toLocaleString(); }
+    }
+
+    function setPanelVisibility(visible) {
+        SHOW_PANEL = visible;
+        localStorage.setItem(LS_SHOW_KEY, visible);
+        const panel = document.getElementById(PANEL_ID);
+        if (panel) panel.style.display = visible ? '' : 'none';
     }
 
     function buildPanel() {
@@ -62,6 +72,7 @@
             'font-size:12px',
             'color:#ccc',
         ].join(';');
+        if (!SHOW_PANEL) panel.style.display = 'none';
 
         const title = document.createElement('div');
         title.textContent = 'Infos';
@@ -117,13 +128,45 @@
         });
     }
 
+    function hookOptionsMenu() {
+        const _updateMenu = Game.UpdateMenu;
+        Game.UpdateMenu = function() {
+            _updateMenu();
+            if (Game.onMenu !== 'prefs') return;
+            const menu = document.querySelector('#menu .block');
+            if (!menu || document.getElementById('ccinfopanel-section')) return;
+
+            const div = document.createElement('div');
+            div.id = 'ccinfopanel-section';
+            div.className = 'subsection';
+            div.innerHTML = `
+                <div class="title">Info Panel</div>
+                <div class="listing">
+                    <a class="option" id="ccInfoToggleBtn">Panneau : ${SHOW_PANEL ? 'affiche' : 'cache'}</a>
+                </div>
+            `;
+
+            div.querySelector('#ccInfoToggleBtn').onclick = function() {
+                setPanelVisibility(!SHOW_PANEL);
+                this.textContent = 'Panneau : ' + (SHOW_PANEL ? 'affiche' : 'cache');
+            };
+
+            menu.insertBefore(div, menu.firstChild);
+        };
+    }
+
+    function init() {
+        buildPanel();
+        hookOptionsMenu();
+        setInterval(refreshPanel, REFRESH_MS);
+    }
+
     function waitForGame() {
         if (typeof Game === 'undefined' || !Game.ready) {
             setTimeout(waitForGame, 500);
             return;
         }
-        buildPanel();
-        setInterval(refreshPanel, REFRESH_MS);
+        init();
     }
 
     waitForGame();
