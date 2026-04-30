@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Info Panel
 // @namespace    https://github.com/SonHaon/CCMods/
-// @version      1.7
+// @version      1.8
 // @description  Affiche un panneau d'informations personnalisées au-dessus du store
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
