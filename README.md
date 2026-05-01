@@ -21,9 +21,11 @@ Automatically saves your Cookie Clicker game to a [Firebase Realtime Database](h
 ### Features
 
 - Auto-save to Firebase on a configurable interval (default: every 60s)
+- **Disables the game's built-in 60-second auto-save** and takes over entirely — see the warning below
 - Password-protected writes enforced at the **Firebase rules level**
 - Password verified locally via SHA-256 hash (no external library required)
-- Force sync with `Ctrl+S`
+- Force sync with `Ctrl+S` or the **Force Cloud Sync** button in Options
+- Force-load from the cloud at any time via the **Force Load from Cloud** button in Options
 - Live leaderboard showing cookies, CPS and prestige of all players
 - All settings accessible from the in-game **Options** menu
 
@@ -35,6 +37,8 @@ Save data is stored in plaintext (the standard Cookie Clicker base64 export form
 - **Passwords** are stored in a `passwords/` node with `.read: false` — invisible to all clients, but always visible from the Firebase console (admin access).
 - **Password changes** require the old password as proof, validated by Firebase rules before accepting the new one.
 - **Local verification** uses a SHA-256 hash stored alongside your save, so the script can verify your password without being able to read the `passwords/` node.
+
+> **Auto-save takeover:** This script disables Cookie Clicker's built-in 60-second auto-save and replaces it with its own save cycle. On every save, the local browser save is always written first — even if the cloud sync fails. However, if the script itself fails to load (Tampermonkey disabled, fatal error at startup), **the game will not auto-save at all** until you reload. It is strongly recommended to set a short save interval and to always keep a manual export as a backup.
 
 > **Save loss risk:** This script syncs your save to the cloud, but it is not a backup solution. A bug, a wrong password, or a Firebase misconfiguration could result in data loss. It is strongly recommended to occasionally export your save manually via the in-game **Options → Export save** button and keep a local copy.
 
@@ -86,6 +90,19 @@ Save data is stored in plaintext (the standard Cookie Clicker base64 export form
 
 From then on, open **Options → Cloud Save** in-game to manage everything.
 
+### Save loading and conflict resolution
+
+Every time the game loads, the script fetches your cloud save and decides what to do:
+
+| Situation | Behaviour |
+|---|---|
+| No cloud save exists | New profile — you are asked to set a password |
+| Cloud save is from **this device** | Local save is kept (offline progress preserved), cloud is not loaded |
+| Cloud save is from **a different device** | A confirmation dialog shows the time and cookies earned for both the cloud and local versions — you choose which one to load |
+
+If you want to force-load the cloud save at any time (overwriting your current local session), use **Options → Cloud Save → Force Load from Cloud**.
+
+The script also calls the game's native local save (`WriteSave`) on every cloud sync, so the local browser save always stays in sync with the cloud.
 
 ### Inspired by
 

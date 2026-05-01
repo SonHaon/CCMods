@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Cloud Save
 // @namespace    https://github.com/SonHaon/CCMods/
-// @version      1.9
+// @version      1.10
 // @description  Sauvegarde auto compatible avec les URLs Firebase Europe-West1
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
@@ -70,6 +70,11 @@
             conflict_msg:        'Save from another device detected.\n\n☁ Cloud: {cloud_ago} — {cloud_cookies} cookies earned\n💻 Local: {local_ago} — {local_cookies} cookies earned\n\nOK = load CLOUD save\nCancel = keep LOCAL save',
             notify_kept_local:   'Local save kept.',
             notify_loaded_cloud: 'Cloud save loaded.',
+            force_load:          'Force Load from Cloud',
+            force_load_confirm:  'This will overwrite your local save with the cloud version.\n\nAre you sure?',
+            sync_error:          'Cloud sync failed (local save kept)',
+            error_notif_shown:   'Sync errors: shown',
+            error_notif_hidden:  'Sync errors: hidden',
         },
         FR: {
             configure_url:       "Configurer l'URL Firebase",
@@ -124,6 +129,11 @@
             conflict_msg:        'Save d\'un autre appareil détectée.\n\n☁ Cloud : {cloud_ago} — {cloud_cookies} cookies gagnés\n💻 Local : {local_ago} — {local_cookies} cookies gagnés\n\nOK = charger la save CLOUD\nAnnuler = garder la save LOCALE',
             notify_kept_local:   'Save locale conservée.',
             notify_loaded_cloud: 'Save cloud chargée.',
+            force_load:          'Charger depuis le cloud',
+            force_load_confirm:  'Cela va écraser ta save locale avec la version cloud.\n\nTu es sûr ?',
+            sync_error:          'Erreur de sync cloud (save locale conservée)',
+            error_notif_shown:   'Erreurs de sync : affichées',
+            error_notif_hidden:  'Erreurs de sync : cachées',
         },
     };
 
@@ -157,7 +167,8 @@
     const _rawSave = localStorage.getItem('CCCloud_SAVE_INTERVAL');
     let SAVE_INTERVAL = _rawSave !== null ? parseInt(_rawSave) : 60;
     let LB_INTERVAL   = parseInt(localStorage.getItem('CCCloud_LB_INTERVAL') || '0');
-    let SHOW_LB       = localStorage.getItem('CCCloud_SHOW_LB') !== 'false';
+    let SHOW_LB          = localStorage.getItem('CCCloud_SHOW_LB') !== 'false';
+    let SHOW_SYNC_ERRORS = localStorage.getItem('CCCloud_SHOW_SYNC_ERRORS') !== 'false';
 
     const hashPass = async (pass) => {
         const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pass));
@@ -207,6 +218,9 @@
                                 <label>${t('profile')}<b>${DB_NAME}</b></label>
                             </div>
                             <div class="listing">
+                                <a class="option" id="cloudLoadBtn" style="color:#fa0;">${t('force_load')}</a>
+                            </div>
+                            <div class="listing">
                                 <a class="option" id="showPassBtn">${t('show_pass')}</a>
                             </div>
                             <div class="listing">
@@ -227,6 +241,9 @@
                             <div class="listing">
                                 <a class="option" id="toggleLbBtn">${SHOW_LB ? t('lb_shown') : t('lb_hidden')}</a>
                             </div>
+                            <div class="listing">
+                                <a class="option" id="toggleSyncErrorsBtn">${SHOW_SYNC_ERRORS ? t('error_notif_shown') : t('error_notif_hidden')}</a>
+                            </div>
                         `;
 
                         div.querySelector('#cloudSaveBtn').onclick = () => {
@@ -234,6 +251,15 @@
                             const btn = div.querySelector('#cloudSaveBtn');
                             btn.textContent = t('synced');
                             setTimeout(() => { btn.textContent = t('force_sync'); }, 2000);
+                        };
+                        div.querySelector('#cloudLoadBtn').onclick = async () => {
+                            if (!confirm(t('force_load_confirm'))) return;
+                            const snapshot = await this._get(this._ref);
+                            const data = snapshot.val();
+                            if (!data?.game) return;
+                            Game.LoadSave(data.game);
+                            await this.save();
+                            Game.Notify('Cloud Sync', t('notify_loaded_cloud'), [16, 5], 5);
                         };
                         div.querySelector('#showPassBtn').onclick = () => {
                             alert(DB_PASS
@@ -305,6 +331,11 @@
                             const lbEl = document.getElementById('cccloud-leaderboard');
                             if (lbEl) lbEl.style.display = SHOW_LB ? '' : 'none';
                             div.querySelector('#toggleLbBtn').textContent = SHOW_LB ? t('lb_shown') : t('lb_hidden');
+                        };
+                        div.querySelector('#toggleSyncErrorsBtn').onclick = () => {
+                            SHOW_SYNC_ERRORS = !SHOW_SYNC_ERRORS;
+                            localStorage.setItem('CCCloud_SHOW_SYNC_ERRORS', SHOW_SYNC_ERRORS);
+                            div.querySelector('#toggleSyncErrorsBtn').textContent = SHOW_SYNC_ERRORS ? t('error_notif_shown') : t('error_notif_hidden');
                         };
                     }
 
@@ -399,9 +430,13 @@
                             cookiesEarned: Math.floor(Game.cookiesEarned || 0),
                         });
                         await update(this._lbRef, lbStats);
-                        Game.WriteSave();
                         Game.Notify('Cloud Sync', t('notify_synced'), '', 1);
-                    } catch (e) { console.error(e); }
+                    } catch (e) {
+                        console.error(e);
+                        if (SHOW_SYNC_ERRORS) Game.Notify('Cloud Sync', t('sync_error'), '', 1);
+                    } finally {
+                        Game.WriteSave();
+                    }
                 };
 
                 const timeAgo = (ms) => {
@@ -494,6 +529,7 @@
                 };
 
                 this._ready = true;
+                Game.prefs.autosave = 0;
                 this.load();
                 Game.Win('Third-party');
                 this._startSaveInterval(SAVE_INTERVAL);
