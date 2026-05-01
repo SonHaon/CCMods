@@ -64,6 +64,12 @@
             lb_error:            'Error while loading.',
             lb_you:              '(you)',
             lb_online_title:     'Online',
+
+            time_min:            '{n} min ago',
+            time_hour:           '{n}h ago',
+            conflict_msg:        'Save from another device detected.\n\n☁ Cloud: {cloud_ago} — {cloud_cookies} cookies earned\n💻 Local: {local_ago} — {local_cookies} cookies earned\n\nOK = load CLOUD save\nCancel = keep LOCAL save',
+            notify_kept_local:   'Local save kept.',
+            notify_loaded_cloud: 'Cloud save loaded.',
         },
         FR: {
             configure_url:       "Configurer l'URL Firebase",
@@ -112,6 +118,12 @@
             lb_error:            'Erreur lors du chargement.',
             lb_you:              '(vous)',
             lb_online_title:     'En ligne',
+
+            time_min:            'il y a {n} min',
+            time_hour:           'il y a {n}h',
+            conflict_msg:        'Save d\'un autre appareil détectée.\n\n☁ Cloud : {cloud_ago} — {cloud_cookies} cookies gagnés\n💻 Local : {local_ago} — {local_cookies} cookies gagnés\n\nOK = charger la save CLOUD\nAnnuler = garder la save LOCALE',
+            notify_kept_local:   'Save locale conservée.',
+            notify_loaded_cloud: 'Save cloud chargée.',
         },
     };
 
@@ -134,6 +146,13 @@
     let DB_URL  = localStorage.getItem('CCCloud_DB_URL')  || "";
     let DB_NAME = localStorage.getItem('CCCloud_DB_NAME') || "";
     let DB_PASS = (localStorage.getItem('CCCloud_DB_PASS') || "").trim();
+
+    // Identifiant unique de cet appareil — généré une fois, persisté en localStorage
+    let DEVICE_ID = localStorage.getItem('CCCloud_DEVICE_ID');
+    if (!DEVICE_ID) {
+        DEVICE_ID = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now().toString(36));
+        localStorage.setItem('CCCloud_DEVICE_ID', DEVICE_ID);
+    }
 
     const _rawSave = localStorage.getItem('CCCloud_SAVE_INTERVAL');
     let SAVE_INTERVAL = _rawSave !== null ? parseInt(_rawSave) : 60;
@@ -372,20 +391,29 @@
                     };
                     try {
                         await update(this._ref, {
-                            game:     rawSave,
-                            time:     Date.now(),
-                            passhash: await hashPass(DB_PASS),
-                            _token:   DB_PASS,
+                            game:          rawSave,
+                            time:          Date.now(),
+                            passhash:      await hashPass(DB_PASS),
+                            _token:        DB_PASS,
+                            deviceId:      DEVICE_ID,
+                            cookiesEarned: Math.floor(Game.cookiesEarned || 0),
                         });
                         await update(this._lbRef, lbStats);
                         Game.Notify('Cloud Sync', t('notify_synced'), '', 1);
                     } catch (e) { console.error(e); }
                 };
 
+                const timeAgo = (ms) => {
+                    const mins = Math.round((Date.now() - ms) / 60000);
+                    if (mins < 60) return t('time_min', { n: mins });
+                    return t('time_hour', { n: Math.round(mins / 60) });
+                };
+
                 this.load = async () => {
                     const snapshot = await get(this._ref);
                     const data = snapshot.val();
 
+                    // Nouveau profil
                     if (!data || !data.game) {
                         while (!DB_PASS) {
                             DB_PASS = prompt(t('prompt_pass_new', { name: DB_NAME })) || "";
@@ -395,10 +423,33 @@
                         return;
                     }
 
-                    Game.LoadSave(data.game);
+                    // Même appareil : on garde le local (production offline préservée)
+                    if (data.deviceId === DEVICE_ID) {
+                        this._authenticated = await authenticateWithHash(data.passhash);
+                        if (this._authenticated) {
+                            Game.Notify('Cloud Sync', t('notify_access') + DB_NAME, [16, 5], 5);
+                        }
+                        return;
+                    }
+
+                    // Autre appareil : on demande à l'utilisateur
+                    const useCloud = confirm(t('conflict_msg', {
+                        cloud_ago:     timeAgo(data.time || 0),
+                        cloud_cookies: fmt(data.cookiesEarned || 0),
+                        local_ago:     timeAgo(Game.fullDate || 0),
+                        local_cookies: fmt(Game.cookiesEarned || 0),
+                    }));
+
+                    if (useCloud) Game.LoadSave(data.game);
+
                     this._authenticated = await authenticateWithHash(data.passhash);
                     if (this._authenticated) {
-                        Game.Notify('Cloud Sync', t('notify_access') + DB_NAME, [16, 5], 2);
+                        if (useCloud) {
+                            await this.save(); // met à jour deviceId sur le cloud immédiatement
+                            Game.Notify('Cloud Sync', t('notify_loaded_cloud'), [16, 5], 5);
+                        } else {
+                            Game.Notify('Cloud Sync', t('notify_kept_local'), [16, 5], 5);
+                        }
                     }
                 };
 
