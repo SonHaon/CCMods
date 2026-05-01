@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Cloud Save
 // @namespace    https://github.com/SonHaon/CCMods/
-// @version      1.10
+// @version      1.11
 // @description  Sauvegarde auto compatible avec les URLs Firebase Europe-West1
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
@@ -433,7 +433,7 @@
                         Game.Notify('Cloud Sync', t('notify_synced'), '', 1);
                     } catch (e) {
                         console.error(e);
-                        if (SHOW_SYNC_ERRORS) Game.Notify('Cloud Sync', t('sync_error'), '', 1);
+                        if (SHOW_SYNC_ERRORS) Game.Notify('Cloud Sync', t('sync_error'), [16, 5]);
                     } finally {
                         Game.WriteSave();
                     }
