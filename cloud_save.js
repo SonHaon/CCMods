@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Cloud Save
 // @namespace    https://github.com/SonHaon/CCMods/
-// @version      1.7
+// @version      1.8
 // @description  Sauvegarde auto compatible avec les URLs Firebase Europe-West1
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
@@ -399,6 +399,7 @@
                             cookiesEarned: Math.floor(Game.cookiesEarned || 0),
                         });
                         await update(this._lbRef, lbStats);
+                        Game.WriteSave();
                         Game.Notify('Cloud Sync', t('notify_synced'), '', 1);
                     } catch (e) { console.error(e); }
                 };
@@ -520,6 +521,7 @@
                 window.addEventListener('keydown', (e) => {
                     if ((e.ctrlKey || e.metaKey) && e.keyCode === 83) {
                         e.preventDefault();
+                        Game.WriteSave();
                         this.save();
                     }
                 });
