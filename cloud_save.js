@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Cloud Save
 // @namespace    https://github.com/SonHaon/CCMods/
-// @version      1.11
+// @version      1.12
 // @description  Sauvegarde auto compatible avec les URLs Firebase Europe-West1
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
@@ -510,7 +510,7 @@
                                 const online = (now - (d.time || 0)) < 90000
                                     ? ` <span style="color:#4f4;font-size:110%;" title="${t('lb_online_title')}">●</span>`
                                     : '';
-                                return `<div style="padding:2px 0;border-top:1px solid rgba(255,255,255,0.05);">
+                                return `<div style="padding:2px 0;border-top:1px solid rgba(255,255,255,0.05);white-space:nowrap;">
                                     <b>${name}</b>${you}${online} —
                                     🍪 ${fmt(d.cookies)} |
                                     ⚡ ${fmt(d.cps)}/s |
@@ -540,7 +540,7 @@
                 if (!SHOW_LB) lb.style.display = 'none';
                 lb.innerHTML = `
                     <div class="title" style="font-size:90%;padding:4px 0;">${t('lb_title')} <a id="refreshLbBtn" class="option" style="font-size:80%;font-weight:normal;cursor:pointer;">${t('lb_refresh_btn')}</a></div>
-                    <div id="cccloud-lb-rows" style="font-size:80%;"></div>
+                    <div id="cccloud-lb-rows" style="font-size:80%;max-width:100%;overflow-x:auto;overflow-y:hidden;"></div>
                 `;
                 lb.querySelector('#refreshLbBtn').onclick = async () => {
                     const btn = lb.querySelector('#refreshLbBtn');
