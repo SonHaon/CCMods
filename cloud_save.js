@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Cloud Save
 // @namespace    https://github.com/SonHaon/CCMods/
-// @version      1.13
+// @version      1.14
 // @description  Sauvegarde auto compatible avec les URLs Firebase Europe-West1
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
@@ -510,11 +510,9 @@
                                 const online = (now - (d.time || 0)) < 90000
                                     ? ` <span style="color:#4f4;font-size:110%;" title="${t('lb_online_title')}">●</span>`
                                     : '';
-                                return `<div style="padding:2px 0;border-top:1px solid rgba(255,255,255,0.05);white-space:nowrap;">
-                                    <b>${name}</b>${you}${online} —
-                                    🍪 ${fmt(d.cookies)} |
-                                    ⚡ ${fmt(d.cps)}/s |
-                                    👑 ${d.prestige}
+                                return `<div style="padding:2px 0;border-top:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;gap:8px;min-width:0;">
+                                    <b style="min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:0 1 80px;">${name}</b>${you}${online}
+                                    <span style="white-space:nowrap;flex-shrink:0;font-size:90%;">🍪${fmt(d.cookies)} ⚡${fmt(d.cps)}/s 👑${d.prestige}</span>
                                 </div>`;
                             }).join('');
                         }
