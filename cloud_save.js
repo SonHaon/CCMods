@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Cloud Save
 // @namespace    https://github.com/SonHaon/CCMods/
-// @version      1.12
+// @version      1.13
 // @description  Sauvegarde auto compatible avec les URLs Firebase Europe-West1
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
@@ -536,11 +536,11 @@
 
                 const lb = document.createElement('div');
                 lb.id = 'cccloud-leaderboard';
-                lb.style.cssText = 'padding:4px 8px;background:rgba(0,0,0,0.5);border-bottom:1px solid rgba(255,255,255,0.1);';
+                lb.style.cssText = 'padding:4px 8px;background:rgba(0,0,0,0.5);border-bottom:1px solid rgba(255,255,255,0.1);max-width:100%;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;';
                 if (!SHOW_LB) lb.style.display = 'none';
                 lb.innerHTML = `
                     <div class="title" style="font-size:90%;padding:4px 0;">${t('lb_title')} <a id="refreshLbBtn" class="option" style="font-size:80%;font-weight:normal;cursor:pointer;">${t('lb_refresh_btn')}</a></div>
-                    <div id="cccloud-lb-rows" style="font-size:80%;max-width:100%;overflow-x:auto;overflow-y:hidden;"></div>
+                    <div id="cccloud-lb-rows" style="font-size:80%;display:inline-block;min-width:100%;"></div>
                 `;
                 lb.querySelector('#refreshLbBtn').onclick = async () => {
                     const btn = lb.querySelector('#refreshLbBtn');
