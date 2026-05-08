@@ -498,7 +498,7 @@
                     n = Number(n) || 0;
                     const suffixes = ['', 'K', 'M', 'B', 'T', 'Quadr', 'Quint', 'Sext', 'Sept', 'Oct', 'Non', 'Dec'];
                     let idx = 0;
-                    while (n >= 1000000 && idx < suffixes.length - 1) {
+                    while (n >= 1000 && idx < suffixes.length - 1) {
                         n /= 1000;
                         idx++;
                     }
