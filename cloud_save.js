@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Cookie Clicker Cloud Save
 // @namespace    https://github.com/SonHaon/CCMods/
-// @version      1.15
+// @version      1.16
 // @description  Sauvegarde auto compatible avec les URLs Firebase Europe-West1
 // @author       SonHaon
 // @match        https://orteil.dashnet.org/cookieclicker/
@@ -494,6 +494,8 @@
                     if (secs > 0) this._saveTimer = setInterval(() => this.save(), secs * 1000);
                 };
 
+                const fmtLb = (n) => { try { return Beautify(n, 1); } catch(_) { return Number(n).toLocaleString(); } };
+
                 this._refreshLb = async () => {
                     const rows = document.getElementById('cccloud-lb-rows');
                     if (!rows) return;
@@ -511,7 +513,7 @@
                                     ? ` <span style="color:#4f4;font-size:110%;" title="${t('lb_online_title')}">●</span>`
                                     : '';
                                 return `<div style="padding:2px 0;border-top:1px solid rgba(255,255,255,0.05);white-space:nowrap;">
-                                    <b>${name}</b>${you}${online} — 🍪 ${fmt(d.cookies)} | ⚡ ${fmt(d.cps)}/s | 👑 ${d.prestige}
+                                    <b>${name}</b>${you}${online} — 🍪 ${fmtLb(d.cookies)} | ⚡ ${fmtLb(d.cps)}/s | 👑 ${d.prestige}
                                 </div>`;
                             }).join('');
                         }
